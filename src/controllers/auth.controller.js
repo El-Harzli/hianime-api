@@ -146,7 +146,6 @@ export const refreshAccessToken = async (req, res) => {
   }
 };
 
-
 export const logout = (req, res) => {
   const cookies = req.cookies;
   if (!cookies?.refreshToken) {
@@ -159,4 +158,47 @@ export const logout = (req, res) => {
   });
 
   return res.json({ message: 'Cookie cleared and logged out successfully' });
+};
+
+export const updatePassword = async (req, res) => {
+  try {
+    if (!req.user?._id) return res.status(401).json({ message: 'Unauthorized - no user data' });
+
+    // Check if a user really exists
+    const foundUser = await User.findOne({ _id: req.user._id });
+
+    if (!foundUser) {
+      return res.status(404).json({ message: 'No such user' });
+    }
+
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
+
+    // Validate required fields
+    if (!currentPassword || !newPassword || !confirmNewPassword) {
+      return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(currentPassword, foundUser.password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Current password not correct' });
+    }
+
+    // check if new password is the current password
+    if (await bcrypt.compare(newPassword, foundUser.password)) {
+      return res.status(400).json({ message: 'New password must be different from current password' });
+    }
+
+    // UPDATE USER PASSWORD
+    const hashed = await bcrypt.hash(newPassword, 10);
+    foundUser.password = hashed;
+    await foundUser.save();
+
+    return res.status(200).json({
+      message: 'Password updated successfully',
+    });
+  } catch (error) {
+    console.error('Update password error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
 };
