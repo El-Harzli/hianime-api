@@ -16,7 +16,7 @@ const watchListSchema = new mongoose.Schema(
       required: true,
     },
     episodes: {
-      sub: { type: Number, required: true },
+      sub: { type: Number, default: 0 },
       dub: { type: Number, default: 0 },
     },
     title: {
