@@ -1,5 +1,10 @@
 import User from '../models/user.model.js';
 import bcrypt from 'bcrypt';
+import jwt from 'jsonwebtoken';
+
+const accessTokenExpirationTime = '15m';
+const refreshTokenExpirationTime = '1d';
+const refreshTokenMaxAge = 1 * 24 * 60 * 60 * 1000;
 
 export const register = async (req, res) => {
   try {
@@ -21,10 +26,10 @@ export const register = async (req, res) => {
       return res.status(409).json({ message: 'Username already used' });
     }
 
-    // Check if password matches confirmPassword     
-    if (password !== confirmPassword) {       
-      return res.status(400).json({ message: 'Passwords do not match' });     
-    }  
+    // Check if password matches confirmPassword
+    if (password !== confirmPassword) {
+      return res.status(400).json({ message: 'Passwords do not match' });
+    }
 
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -39,4 +44,70 @@ export const register = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
-export const login = (req, res) => {};
+
+export const login = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    // Validate inputs
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    // Check if user exists
+    const foundUser = await User.findOne({ email });
+    if (!foundUser) {
+      return res.status(401).json({ message: 'Invalid email' });
+    }
+
+    // Compare password
+    const isMatch = await bcrypt.compare(password, foundUser.password);
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Incorrect password!' });
+    }
+
+    const accessToken = jwt.sign(
+      {
+        UserInfo: {
+          _id: foundUser._id,
+          username: foundUser.username,
+          email: foundUser.email,
+        },
+      },
+      process.env.ACCESS_TOKEN_SECRET,
+      {
+        expiresIn: accessTokenExpirationTime,
+      }
+    );
+
+    const refreshToken = jwt.sign(
+      {
+        UserInfo: {
+          _id: foundUser._id,
+          username: foundUser.username,
+          email: foundUser.email,
+        },
+      },
+      process.env.REFRESH_TOKEN_SECRET,
+      {
+        expiresIn: refreshTokenExpirationTime,
+      }
+    );
+
+    res.cookie('refreshToken', refreshToken, {
+      httpOnly: true,
+      sameSite: 'Strict',
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      maxAge: refreshTokenMaxAge,
+    });
+
+    res.status(200).json({
+      message: 'Login successful',
+      accessToken,
+      user: { id: foundUser._id, username: foundUser.username, email: foundUser.email },
+    });
+  } catch (error) {
+    console.error('Login error:', error.message);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+};
