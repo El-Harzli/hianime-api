@@ -31,3 +31,5 @@ Thumbs.db
 # Uploads or temporary files
 uploads/
 tmp/
+
+.prettierrc.json
