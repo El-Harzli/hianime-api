@@ -15,6 +15,11 @@ export const register = async (req, res) => {
     if (existingEmail) {
       return res.status(409).json({ message: 'Email already used' });
     }
+    // Check if email already exists
+    const existingUsername = await User.findOne({ username });
+    if (existingUsername) {
+      return res.status(409).json({ message: 'Username already used' });
+    }
 
     // Check if password matches confirmPassword     
     if (password !== confirmPassword) {       
