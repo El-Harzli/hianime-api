@@ -111,3 +111,52 @@ export const login = async (req, res) => {
     res.status(500).json({ message: 'Internal server error' });
   }
 };
+
+export const refreshAccessToken = async (req, res) => {
+  try {
+    const cookies = req.cookies;
+    if (!cookies?.refreshToken) return res.status(401).json({ message: 'Unauthorized' });
+
+    const refreshToken = cookies.refreshToken;
+    const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+    const foundUser = await User.findOne({ email: decoded.UserInfo.email });
+    if (!foundUser) return res.status(401).json({ message: 'Unauthorized' });
+
+    const accessToken = jwt.sign(
+      {
+        UserInfo: {
+          _id: foundUser._id,
+          username: foundUser.username,
+          email: foundUser.email,
+        },
+      },
+      process.env.ACCESS_TOKEN_SECRET,
+      { expiresIn: accessTokenExpirationTime }
+    );
+
+    res.json({ accessToken, user: { username: foundUser.username, email: foundUser.email } });
+  } catch (err) {
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      sameSite: 'Strict',
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+    });
+    return res.status(403).json({ message: 'Forbidden' });
+  }
+};
+
+
+export const logout = (req, res) => {
+  const cookies = req.cookies;
+  if (!cookies?.refreshToken) {
+    return res.status(204).send();
+  }
+  res.clearCookie('refreshToken', {
+    httpOnly: true,
+    sameSite: 'Strict',
+    secure: process.env.NODE_ENV === 'production' ? true : false,
+  });
+
+  return res.json({ message: 'Cookie cleared and logged out successfully' });
+};
